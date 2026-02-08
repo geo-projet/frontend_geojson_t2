@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Sidebar from '@/components/Sidebar';
 
@@ -46,7 +46,7 @@ export default function Home() {
     fetchLayers();
   }, []);
 
-  const handleToggleLayer = (groupName: string, fileName: string) => {
+  const handleToggleLayer = useCallback((groupName: string, fileName: string) => {
     const id = `${groupName}/${fileName}`;
     setActiveLayers(prev => {
       const exists = prev.find(l => l.id === id);
@@ -56,7 +56,7 @@ export default function Home() {
         return [...prev, { id, groupName, fileName }];
       }
     });
-  };
+  }, []);
 
   return (
     <div className="flex w-screen h-screen overflow-hidden bg-gray-100">

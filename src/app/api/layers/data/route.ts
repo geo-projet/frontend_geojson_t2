@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid path' }, { status: 403 });
   }
 
+  // Validate file extension
+  if (!fullPath.endsWith('.geojson') && !fullPath.endsWith('.json')) {
+    return NextResponse.json({ error: 'Invalid file type' }, { status: 403 });
+  }
+
   if (!fs.existsSync(fullPath)) {
     return NextResponse.json({ error: 'File not found' }, { status: 404 });
   }
@@ -29,6 +34,12 @@ export async function GET(request: NextRequest) {
   try {
     const fileContent = fs.readFileSync(fullPath, 'utf-8');
     const json = JSON.parse(fileContent);
+
+    // Validate GeoJSON format
+    if (!json.type || !['FeatureCollection', 'Feature', 'GeometryCollection'].includes(json.type)) {
+      return NextResponse.json({ error: 'Invalid GeoJSON format' }, { status: 400 });
+    }
+
     return NextResponse.json(json);
   } catch (error) {
     console.error('Error reading file:', error);
