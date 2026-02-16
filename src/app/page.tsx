@@ -24,6 +24,7 @@ interface ActiveLayer {
 export default function Home() {
   const [layers, setLayers] = useState<LayerGroup[]>([]);
   const [activeLayers, setActiveLayers] = useState<ActiveLayer[]>([]);
+  const [layerColors, setLayerColors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,12 +59,49 @@ export default function Home() {
     });
   }, []);
 
+  const handleToggleGroup = useCallback((groupName: string) => {
+    setActiveLayers(prev => {
+      const group = layers.find(g => g.groupName === groupName);
+      if (!group) return prev;
+
+      // Vérifier si toutes les couches du groupe sont actives
+      const groupLayerIds = group.files.map(file => `${groupName}/${file}`);
+      const allActive = groupLayerIds.every(id => prev.some(l => l.id === id));
+
+      if (allActive) {
+        // Désactiver toutes les couches du groupe
+        return prev.filter(l => !groupLayerIds.includes(l.id));
+      } else {
+        // Activer toutes les couches du groupe
+        const existingIds = new Set(prev.map(l => l.id));
+        const newLayers = group.files
+          .filter(file => !existingIds.has(`${groupName}/${file}`))
+          .map(file => ({
+            id: `${groupName}/${file}`,
+            groupName,
+            fileName: file
+          }));
+        return [...prev, ...newLayers];
+      }
+    });
+  }, [layers]);
+
+  const handleColorChange = useCallback((layerId: string, color: string) => {
+    setLayerColors(prev => ({
+      ...prev,
+      [layerId]: color
+    }));
+  }, []);
+
   return (
     <div className="flex w-screen h-screen overflow-hidden bg-gray-100">
-      <Sidebar 
-        layers={layers} 
-        activeLayerIds={activeLayers.map(l => l.id)} 
-        onToggleLayer={handleToggleLayer} 
+      <Sidebar
+        layers={layers}
+        activeLayerIds={activeLayers.map(l => l.id)}
+        layerColors={layerColors}
+        onToggleLayer={handleToggleLayer}
+        onToggleGroup={handleToggleGroup}
+        onColorChange={handleColorChange}
       />
       <main className="flex-1 relative h-full">
         {loading ? (
@@ -71,7 +109,7 @@ export default function Home() {
              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
            </div>
         ) : (
-          <MapComponent activeLayers={activeLayers} />
+          <MapComponent activeLayers={activeLayers} layerColors={layerColors} />
         )}
       </main>
     </div>

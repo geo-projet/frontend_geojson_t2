@@ -48,11 +48,32 @@ interface ActiveLayer {
 
 interface MapComponentProps {
   activeLayers: ActiveLayer[];
+  layerColors: Record<string, string>;
 }
 
 type ToolMode = 'navigate' | 'select' | 'draw';
 
-const MapComponent: React.FC<MapComponentProps> = ({ activeLayers }) => {
+// Helper function to create layer style from color
+const createLayerStyle = (color: string) => {
+  const fillColor = `${color}1A`; // Add alpha channel for transparency (10% opacity)
+
+  return new Style({
+    stroke: new Stroke({
+      color: color,
+      width: 2,
+    }),
+    fill: new Fill({
+      color: fillColor,
+    }),
+    image: new CircleStyle({
+      radius: 5,
+      fill: new Fill({ color: color }),
+      stroke: new Stroke({ color: 'white', width: 1 }),
+    })
+  });
+};
+
+const MapComponent: React.FC<MapComponentProps> = ({ activeLayers, layerColors }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<OlMap | null>(null);
   const vectorLayersRef = useRef<Map<string, VectorLayer<VectorSource>>>(new Map());
@@ -208,22 +229,12 @@ const MapComponent: React.FC<MapComponentProps> = ({ activeLayers }) => {
           format: new GeoJSON(),
         });
 
+        // Use custom color or default
+        const layerColor = layerColors[layerInfo.id] || COLORS.PRIMARY;
+
         const vectorLayer = new VectorLayer({
           source: source,
-          style: new Style({
-            stroke: new Stroke({
-                color: COLORS.PRIMARY,
-                width: 2,
-            }),
-            fill: new Fill({
-                color: COLORS.PRIMARY_LIGHT,
-            }),
-            image: new CircleStyle({
-                radius: 5,
-                fill: new Fill({ color: COLORS.PRIMARY }),
-                stroke: new Stroke({ color: 'white', width: 1 }),
-            })
-          })
+          style: createLayerStyle(layerColor)
         });
 
         currentMap.addLayer(vectorLayer);
@@ -246,7 +257,15 @@ const MapComponent: React.FC<MapComponentProps> = ({ activeLayers }) => {
         });
       }
     });
-  }, [activeLayers]);
+  }, [activeLayers, layerColors]);
+
+  // Update layer styles when colors change
+  useEffect(() => {
+    vectorLayersRef.current.forEach((layer, layerId) => {
+      const newColor = layerColors[layerId] || COLORS.PRIMARY;
+      layer.setStyle(createLayerStyle(newColor));
+    });
+  }, [layerColors]);
 
   // Clear ROI function
   const clearDrawings = () => {

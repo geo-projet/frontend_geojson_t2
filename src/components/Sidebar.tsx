@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface LayerGroup {
   groupName: string;
@@ -10,13 +10,45 @@ interface LayerGroup {
 interface SidebarProps {
   layers: LayerGroup[];
   activeLayerIds: string[];
+  layerColors: Record<string, string>;
   onToggleLayer: (groupName: string, fileName: string) => void;
+  onToggleGroup: (groupName: string) => void;
+  onColorChange: (layerId: string, color: string) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ layers, activeLayerIds, onToggleLayer }) => {
+interface GroupCheckboxProps {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+  groupName: string;
+}
+
+const GroupCheckbox: React.FC<GroupCheckboxProps> = ({ checked, indeterminate, onChange, groupName }) => {
+  const checkboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+      checked={checked}
+      onChange={onChange}
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`Sélectionner toutes les couches de ${groupName}`}
+    />
+  );
+};
+
+const Sidebar: React.FC<SidebarProps> = ({ layers, activeLayerIds, layerColors, onToggleLayer, onToggleGroup, onColorChange }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const toggleGroup = (groupName: string) => {
+  const toggleGroupExpand = (groupName: string) => {
     const newExpanded = new Set(expandedGroups);
     if (newExpanded.has(groupName)) {
       newExpanded.delete(groupName);
@@ -28,6 +60,19 @@ const Sidebar: React.FC<SidebarProps> = ({ layers, activeLayerIds, onToggleLayer
 
   const isActive = (groupName: string, fileName: string) => {
     return activeLayerIds.includes(`${groupName}/${fileName}`);
+  };
+
+  const getGroupCheckState = (group: LayerGroup) => {
+    const groupLayerIds = group.files.map(file => `${group.groupName}/${file}`);
+    const activeCount = groupLayerIds.filter(id => activeLayerIds.includes(id)).length;
+
+    if (activeCount === 0) {
+      return { checked: false, indeterminate: false };
+    } else if (activeCount === groupLayerIds.length) {
+      return { checked: true, indeterminate: false };
+    } else {
+      return { checked: false, indeterminate: true };
+    }
   };
 
   return (
@@ -44,45 +89,72 @@ const Sidebar: React.FC<SidebarProps> = ({ layers, activeLayerIds, onToggleLayer
           </div>
         ) : (
           <div className="space-y-2">
-            {layers.map((group) => (
-              <div key={group.groupName} className="border border-gray-200 rounded-md overflow-hidden">
-                <button
-                  onClick={() => toggleGroup(group.groupName)}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-                >
-                  <span className="font-semibold text-gray-700 text-sm">{group.groupName}</span>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                    {group.files.length}
-                  </span>
-                </button>
-                
-                {expandedGroups.has(group.groupName) && (
-                  <div className="bg-white p-2 space-y-1 border-t border-gray-200">
-                    {group.files.map((file) => {
-                      const id = `${group.groupName}/${file}`;
-                      const checked = isActive(group.groupName, file);
-                      
-                      return (
-                        <label 
-                          key={id} 
-                          className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors text-sm ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                            checked={checked}
-                            onChange={() => onToggleLayer(group.groupName, file)}
-                          />
-                          <span className={`truncate ${checked ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
-                            {file.replace('.geojson', '').replace('.json', '')}
-                          </span>
-                        </label>
-                      );
-                    })}
+            {layers.map((group) => {
+              const checkState = getGroupCheckState(group);
+
+              return (
+                <div key={group.groupName} className="border border-gray-200 rounded-md overflow-hidden">
+                  <div className="w-full flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <GroupCheckbox
+                      checked={checkState.checked}
+                      indeterminate={checkState.indeterminate}
+                      onChange={() => onToggleGroup(group.groupName)}
+                      groupName={group.groupName}
+                    />
+                    <button
+                      onClick={() => toggleGroupExpand(group.groupName)}
+                      className="flex-1 flex items-center justify-between text-left"
+                    >
+                      <span className="font-semibold text-gray-700 text-sm">{group.groupName}</span>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                        {group.files.length}
+                      </span>
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
+                
+                  {expandedGroups.has(group.groupName) && (
+                    <div className="bg-white p-2 space-y-1 border-t border-gray-200">
+                      {group.files.map((file) => {
+                        const id = `${group.groupName}/${file}`;
+                        const checked = isActive(group.groupName, file);
+                        const currentColor = layerColors[id] || '#3b82f6';
+
+                        return (
+                          <div
+                            key={id}
+                            className={`flex items-center gap-2 p-2 rounded transition-colors text-sm ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                          >
+                            <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                checked={checked}
+                                onChange={() => onToggleLayer(group.groupName, file)}
+                              />
+                              <span className={`truncate ${checked ? 'text-blue-700 font-medium' : 'text-gray-600'}`}>
+                                {file.replace('.geojson', '').replace('.json', '')}
+                              </span>
+                            </label>
+                            {checked && (
+                              <div className="relative">
+                                <input
+                                  type="color"
+                                  value={currentColor}
+                                  onChange={(e) => onColorChange(id, e.target.value)}
+                                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                                  title="Choisir une couleur"
+                                  aria-label={`Couleur de ${file}`}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
