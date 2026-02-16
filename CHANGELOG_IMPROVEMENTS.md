@@ -1,4 +1,147 @@
-# Changelog des Améliorations - 2026-02-08
+# Changelog des Améliorations
+
+## 2026-02-15 - Sélection de Groupe et Color Picker
+
+### 🎨 Nouvelles Fonctionnalités
+
+#### 1. Sélection de Groupe
+**Fichiers**: `src/app/page.tsx`, `src/components/Sidebar.tsx`
+
+**Fonctionnalité**:
+- ✅ Checkbox au niveau du groupe pour sélectionner/désélectionner toutes les sous-couches en un clic
+- ✅ État indéterminé (indeterminate) quand certaines sous-couches sont actives
+- ✅ Nouveau composant `GroupCheckbox` avec gestion de l'état via `useRef` + `useEffect`
+
+**Implémentation**:
+```typescript
+// Fonction pour calculer l'état du groupe
+const getGroupCheckState = (group: LayerGroup) => {
+  const groupLayerIds = group.files.map(file => `${group.groupName}/${file}`);
+  const activeCount = groupLayerIds.filter(id => activeLayerIds.includes(id)).length;
+
+  if (activeCount === 0) return { checked: false, indeterminate: false };
+  else if (activeCount === groupLayerIds.length) return { checked: true, indeterminate: false };
+  else return { checked: false, indeterminate: true };
+};
+
+// Gestion de l'état indeterminate via ref
+useEffect(() => {
+  if (checkboxRef.current) {
+    checkboxRef.current.indeterminate = indeterminate;
+  }
+}, [indeterminate]);
+```
+
+**Handler dans page.tsx**:
+```typescript
+const handleToggleGroup = useCallback((groupName: string) => {
+  setActiveLayers(prev => {
+    const group = layers.find(g => g.groupName === groupName);
+    if (!group) return prev;
+
+    const groupLayerIds = group.files.map(file => `${groupName}/${file}`);
+    const allActive = groupLayerIds.every(id => prev.some(l => l.id === id));
+
+    if (allActive) {
+      // Désactiver toutes les couches
+      return prev.filter(l => !groupLayerIds.includes(l.id));
+    } else {
+      // Activer toutes les couches manquantes
+      const existingIds = new Set(prev.map(l => l.id));
+      const newLayers = group.files
+        .filter(file => !existingIds.has(`${groupName}/${file}`))
+        .map(file => ({ id: `${groupName}/${file}`, groupName, fileName: file }));
+      return [...prev, ...newLayers];
+    }
+  });
+}, [layers]);
+```
+
+**Accessibilité**:
+- ✅ `aria-label="Sélectionner toutes les couches de {groupName}"`
+- ✅ `stopPropagation` pour éviter d'expand/collapse le groupe lors du clic
+
+---
+
+#### 2. Color Picker pour Couches
+**Fichiers**: `src/app/page.tsx`, `src/components/Sidebar.tsx`, `src/components/MapComponent.tsx`
+
+**Fonctionnalité**:
+- ✅ Input HTML5 `<input type="color">` affiché à côté de chaque couche active
+- ✅ Permet de personnaliser la couleur d'affichage de la couche sur la carte
+- ✅ Couleur par défaut: `#3b82f6` (bleu)
+- ✅ Mise à jour en temps réel du style de la couche
+
+**Gestion de l'État** (page.tsx):
+```typescript
+const [layerColors, setLayerColors] = useState<Record<string, string>>({});
+
+const handleColorChange = useCallback((layerId: string, color: string) => {
+  setLayerColors(prev => ({
+    ...prev,
+    [layerId]: color
+  }));
+}, []);
+```
+
+**UI** (Sidebar.tsx):
+```typescript
+{checked && (
+  <div className="relative">
+    <input
+      type="color"
+      value={layerColors[id] || '#3b82f6'}
+      onChange={(e) => onColorChange(id, e.target.value)}
+      className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+      title="Choisir une couleur"
+      aria-label={`Couleur de ${file}`}
+    />
+  </div>
+)}
+```
+
+**Application des Styles** (MapComponent.tsx):
+```typescript
+// Fonction helper pour créer les styles
+const createLayerStyle = (color: string) => {
+  const fillColor = `${color}1A`; // Ajout de 10% d'opacité (1A en hex)
+
+  return new Style({
+    stroke: new Stroke({ color: color, width: 2 }),
+    fill: new Fill({ color: fillColor }),
+    image: new CircleStyle({
+      radius: 5,
+      fill: new Fill({ color: color }),
+      stroke: new Stroke({ color: 'white', width: 1 }),
+    })
+  });
+};
+
+// Utilisation lors de la création de couche
+const layerColor = layerColors[layerInfo.id] || COLORS.PRIMARY;
+const vectorLayer = new VectorLayer({
+  source: source,
+  style: createLayerStyle(layerColor)
+});
+
+// Mise à jour dynamique des styles
+useEffect(() => {
+  vectorLayersRef.current.forEach((layer, layerId) => {
+    const newColor = layerColors[layerId] || COLORS.PRIMARY;
+    layer.setStyle(createLayerStyle(newColor));
+  });
+}, [layerColors]);
+```
+
+**Avantages**:
+- 🎨 Différenciation visuelle des couches
+- 📊 Meilleure lisibilité des données superposées
+- 🔧 Personnalisation flexible par l'utilisateur
+- ⚡ Mise à jour en temps réel sans rechargement
+
+---
+
+## 2026-02-08 - Sécurité et Qualité
 
 ## 🔴 Corrections Critiques
 

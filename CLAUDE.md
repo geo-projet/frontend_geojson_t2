@@ -49,10 +49,13 @@ frontend_geojson_t2/
 - **État géré**:
   - `layers`: Liste des groupes de couches disponibles
   - `activeLayers`: Couches actuellement affichées sur la carte
+  - `layerColors`: Couleurs personnalisées par couche (Record<layerId, color>)
   - `loading`: État de chargement initial
 - **Fonctionnalités**:
   - Fetch des couches disponibles depuis `/api/layers`
   - Toggle des couches actives/inactives avec `useCallback` pour performance
+  - Toggle de groupe: activer/désactiver toutes les sous-couches d'un groupe
+  - Gestion des couleurs personnalisées par couche
   - Import dynamique du MapComponent (évite les erreurs SSR avec OpenLayers)
 - **Structure de données**:
   ```typescript
@@ -101,9 +104,15 @@ frontend_geojson_t2/
   - `draw`: Dessin de rectangles (ROI - Region of Interest)
 - **Gestion des couches GeoJSON**:
   - Création dynamique de VectorLayer pour chaque couche active
-  - Style par défaut: bleu (via constante `COLORS.PRIMARY`)
+  - **Styles personnalisables**:
+    - Fonction `createLayerStyle(color)` pour générer les styles OpenLayers
+    - Couleur par défaut: bleu (`COLORS.PRIMARY = '#3b82f6'`)
+    - Couleurs personnalisées via prop `layerColors`
+    - Fill avec 10% d'opacité (ajout de `1A` au code hex)
+    - Styles adaptés: stroke (lignes), fill (polygones), circle (points)
   - Auto-zoom sur l'extent de la couche lors du chargement
   - Suppression automatique des couches désactivées
+  - **Mise à jour dynamique**: useEffect qui met à jour les styles quand les couleurs changent
   - **Gestion d'erreurs**: Détection et log des erreurs de chargement
 - **Nettoyage mémoire amélioré**:
   - Clear des sources vectorielles lors du démontage
@@ -114,7 +123,17 @@ frontend_geojson_t2/
 - **Fonctionnalités**:
   - Liste groupée hiérarchique (répertoires → fichiers)
   - Collapse/Expand des groupes
-  - Checkboxes pour activer/désactiver les couches
+  - **Sélection de groupe**:
+    - Checkbox au niveau du groupe pour sélectionner/désélectionner toutes les sous-couches
+    - Composant `GroupCheckbox` avec état indéterminé (indeterminate)
+    - États: ☐ (aucune active), ☑ (certaines actives), ✓ (toutes actives)
+    - Gestion via `useRef` + `useEffect` pour la propriété HTML `indeterminate`
+  - Checkboxes pour activer/désactiver les couches individuelles
+  - **Color picker**:
+    - Input HTML5 `<input type="color">` affiché à côté de chaque couche active
+    - Permet de personnaliser la couleur d'affichage de la couche
+    - Couleur par défaut: `#3b82f6` (bleu)
+    - Mise à jour en temps réel sur la carte
   - Badge avec nombre de fichiers par groupe
   - Affichage du statut (couches actives en bleu)
 - **Style**: Largeur fixe 320px (w-80), scroll vertical automatique
@@ -356,8 +375,21 @@ return () => {
 };
 ```
 
-## Améliorations Récentes (2026-02-08)
+## Améliorations Récentes
 
+### 2026-02-15 - Sélection de groupe et Color Picker
+- ✅ **Sélection de groupe**: Checkbox au niveau du groupe pour activer/désactiver toutes les sous-couches
+  - État indéterminé (indeterminate) quand certaines couches sont actives
+  - Composant `GroupCheckbox` avec gestion via useRef/useEffect
+- ✅ **Color picker**: Sélecteur de couleur pour chaque couche active
+  - Input HTML5 `<input type="color">`
+  - Couleurs stockées dans l'état `layerColors` (Record<string, string>)
+  - Application dynamique des couleurs aux styles OpenLayers
+  - Mise à jour en temps réel du style de la couche
+- ✅ Fonction `createLayerStyle(color)` pour générer les styles OpenLayers
+- ✅ Transparence adaptative (10% opacity pour le fill des polygones)
+
+### 2026-02-08 - Sécurité et Qualité
 Voir `CHANGELOG_IMPROVEMENTS.md` pour les détails complets.
 
 **Résumé**:
@@ -376,7 +408,7 @@ Voir `CHANGELOG_IMPROVEMENTS.md` pour les détails complets.
 ### Fonctionnalités
 - [ ] Export de ROI en GeoJSON
 - [ ] Mesure de distance/surface
-- [ ] Styling personnalisé par couche
+- [x] Styling personnalisé par couche (✅ Color picker implémenté)
 - [ ] Recherche/filtre de features
 - [ ] Clustering pour grandes datasets
 - [ ] Légende dynamique
